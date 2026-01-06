@@ -8,15 +8,24 @@
  */
 
 // ===== Google Sheet API =====
-const SHEET_API = "https://script.google.com/macros/s/AKfycbze48-AU36E1RkH8PujAg3NvvxsPCdKhw1jopInsVi_izPYB1pRfpMj7Af_FCDfE58AgA/exec";
+const SHEET_API ="https://script.google.com/macros/s/AKfycbw_AfAAhUooWjVX0Jyne0B9M9_PdUHvg8UeKMNR05M1-A_J2SjHa9zwKrwpSdGsTR3tlw/exec";
 
 let ROWS = [];                 // 시트 원본 rows
 let APT_INDEX = new Map();     // normalize(name) -> row
 
+// ✅ 캐시 무효화 포함 (즉시 반영 체감 ↑)
 async function loadSheetData() {
-  const res = await fetch(SHEET_API);
-  if (!res.ok) throw new Error("시트 데이터 로드 실패: " + res.status);
-  ROWS = await res.json();
+  const url = `${SHEET_API}?t=${Date.now()}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const json = await res.json();
+
+  // 혹시 {data:[...]} 형태면 자동 대응
+  const rows = Array.isArray(json) ? json : (Array.isArray(json.data) ? json.data : null);
+  if (!rows) throw new Error("시트 응답이 배열이 아닙니다: " + JSON.stringify(json).slice(0, 200));
+
+  ROWS = rows;
   buildIndex();
 }
 
@@ -138,10 +147,16 @@ function startGuided() {
   state.selectedGu = null;
   state.selectedDong = null;
 
-  const gus = [...new Set(ROWS.map(r => (r.gu || "").toString().trim()).filter(Boolean))];
+  const gus = [...new Set(
+    ROWS
+      .map(r => (r.gu || "").toString().trim())
+      .filter(Boolean)
+  )];
 
   if (!gus.length) {
-    addSys("구 목록이 비어 있어요. 시트 컬럼(gu)을 확인해 주세요.");
+    addSys(
+      "구 목록이 비어 있어요.\n\n✅ 확인:\n- 시트 1행 헤더가 gu 인지\n- 헤더에 공백/대문자(GU, gu )가 아닌지\n- Apps Script에서 헤더를 trim+소문자 처리했는지"
+    );
     return;
   }
 
@@ -201,8 +216,9 @@ function pickApt(apt) {
     return;
   }
 
-  const info = (row.info || "").toString();
-  addSys(`[${row.apt}]\n\n${info || "(등록된 info가 없어요)"}\n`);
+  // info 컬럼이 없으면 txt도 허용(혹시 대비)
+  const info = (row.info ?? row.txt ?? "").toString();
+  addSys(`[${row.apt}]\n\n${info || "(등록된 내용이 없어요)"}\n`);
 
   addSys("다시 조회할까요?", createQuickButtons(["선택해서 찾기", "그냥 입력하기"], (x) => {
     if (x === "선택해서 찾기") startGuided();
@@ -219,7 +235,7 @@ function handleSend() {
   inputEl.value = "";
 
   if (!ROWS.length) {
-    addSys("데이터가 아직 로드되지 않았어요. 잠시 후 다시 시도해 주세요.");
+    addSys("데이터가 아직 로드되지 않았어요. (잠시 후 다시 시도)\n또는 상단 초기화 버튼을 눌러주세요.");
     return;
   }
 
@@ -227,7 +243,8 @@ function handleSend() {
 
   if (res.type === "hit") {
     const row = res.row;
-    addSys(`[${row.apt}]${res.fuzzy ? " (유사 매칭)" : ""}\n\n${(row.info || "").toString()}`);
+    const info = (row.info ?? row.txt ?? "").toString();
+    addSys(`[${row.apt}]${res.fuzzy ? " (유사 매칭)" : ""}\n\n${info || "(등록된 내용이 없어요)"}`);
     return;
   }
 
@@ -236,13 +253,14 @@ function handleSend() {
       createQuickButtons(res.candidates, (apt) => {
         addMe(apt);
         const row = APT_INDEX.get(normalize(apt));
-        addSys(`[${row.apt}]\n\n${(row.info || "").toString()}`);
+        const info = (row?.info ?? row?.txt ?? "").toString();
+        addSys(`[${row?.apt || apt}]\n\n${info || "(등록된 내용이 없어요)"}`);
       })
     );
     return;
   }
 
-  addSys("일치하는 아파트를 찾지 못했어요. (오타/띄어쓰기/별칭 확인)");
+  addSys("일치하는 항목을 찾지 못했어요. (오타/띄어쓰기/별칭 확인)");
 }
 
 // ===== Reset =====
@@ -267,14 +285,18 @@ inputEl.addEventListener("keydown", (e) => {
 });
 resetBtn.addEventListener("click", resetAll);
 
-// ===== Init =====
-(async function init() {
+// ===== Init (✅ 첫 화면 말풍선 보장 + 데이터 로드) =====
+window.addEventListener("DOMContentLoaded", async () => {
   datePill.textContent = formatKoreanDate();
+
+  // ✅ 첫 화면은 무조건 먼저 띄움
+  resetAll();
+
   try {
-    await loadSheetData();  // ✅ 시트 로드 + 인덱스 빌드
-    resetAll();
+    await loadSheetData();
+    // 필요하면 로드 완료 메시지(원치 않으면 주석)
+    // addSys("데이터 로드 완료 ✅");
   } catch (err) {
-    resetAll();
-    addSys("시트 연동에 실패했어요.\n- SHEET_API 주소 확인\n- Apps Script 배포 권한(모든 사용자) 확인\n\n에러: " + String(err));
+    addSys("시트 연동 실패 ❌\n- SHEET_API 주소 확인\n- Apps Script 웹앱 권한(모든 사용자)\n- 시트 탭 이름(data)\n\n에러: " + String(err));
   }
-})();
+});
