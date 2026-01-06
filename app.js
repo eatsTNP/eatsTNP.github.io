@@ -11,46 +11,15 @@
  */
 
 // ===== 예시 데이터 =====
-// const DATA = {
-  "서구": {
-    "덕이동": {
-      "하이파크 5단지": `두번째 자리 10 - 동수
-501동 5954
-502동 5854
-503동 5754
-504동 5654
-505동 5554`,
-    "하이파크 4단지": `두번째 자리 10 - 동수
-501동 5954
-502동 5854
-503동 5754
-504동 5654
-505동 5554`,
-      "블루캐슬": `A구역 공통
-301동 1122
-302동 2233`
-    }
-  },
-  "동구": {
-    "중앙동": {
-      "파크뷰": `입장 코드
-101동 7777
-102동 8888`
-    }
-  }
-// };
 
 const SHEET_API = "https://script.google.com/macros/s/AKfycbze48-AU36E1RkH8PujAg3NvvxsPCdKhw1jopInsVi_izPYB1pRfpMj7Af_FCDfE58AgA/exec";
 
 let ROWS = [];
 
 async function loadSheetData() {
-  const res = await fetch(SHEET_API);
-  ROWS = await res.json();
+    const res = await fetch(SHEET_API);
+    ROWS = await res.json();
 }
-
-loadSheetData();
-
 
 // ===== DOM =====
 const chatEl = document.getElementById("chat");
@@ -249,5 +218,8 @@ inputEl.addEventListener("keydown", (e) => {
 resetBtn.addEventListener("click", resetAll);
 
 // ===== Init =====
-datePill.textContent = formatKoreanDate();
-resetAll();
+(async function init() {
+  datePill.textContent = formatKoreanDate();
+  await loadSheetData();   // ✅ 여기
+  resetAll();
+})();
