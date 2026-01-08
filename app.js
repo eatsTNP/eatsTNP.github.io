@@ -360,7 +360,8 @@ function renderHome() {
   addSys(
     "원하는 방식으로 조회하세요.\n\n" +
     "1) 선택해서 찾기: 구 → 동 → 아파트\n" +
-    "2) 하단 입력창에 아파트명(또는 별칭) 입력",
+    "2) 하단 입력창에 아파트명(또는 별칭) 입력", +
+    "3) 하단 입력창에 하이투모로 호수 입력",
     createQuickButtons(["선택해서 찾기"], startGuided)
   );
 }
@@ -430,5 +431,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     console.error(err);
   }
 });
+
 
 
