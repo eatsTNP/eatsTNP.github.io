@@ -52,7 +52,36 @@ function sortIfNeeded(arr) {
 function scrollToBottom() {
   el.chat.scrollTop = el.chat.scrollHeight;
 }
+// =====================================================
+// 3-1)
+// =====================================================
+function findAptByUnit(unitInput) {
+  const unit = parseInt(String(unitInput).replace(/[^\d]/g, ""), 10);
+  if (!Number.isFinite(unit)) return null;
 
+  for (const row of ROWS) {
+    if (!row.aliases) continue;
+
+    // 예: "101-120,301-328"
+    const ranges = String(row.aliases)
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    for (const r of ranges) {
+      const m = r.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (!m) continue;
+
+      const start = parseInt(m[1], 10);
+      const end   = parseInt(m[2], 10);
+
+      if (unit >= start && unit <= end) {
+        return row.apt; // ✅ apt 반환
+      }
+    }
+  }
+  return null;
+}
 // =====================================================
 // 4) UI (Chat render)
 // =====================================================
@@ -213,6 +242,17 @@ function handleSend() {
 
   if (!state.isLoaded) {
     addSys("데이터 로드 중입니다. 잠시 후 다시 시도해주세요.");
+    return;
+  }
+
+// ✅ 1️⃣ 숫자만 입력 → 호수 검색
+  if (/^\d+$/.test(msg.trim())) {
+    const apt = findAptByUnit(msg);
+    if (apt) {
+      addSys(`[${apt}] 입니다`);
+    } else {
+      addSys("해당 호수를 찾지 못했어요.");
+    }
     return;
   }
 
@@ -390,4 +430,5 @@ window.addEventListener("DOMContentLoaded", async () => {
     console.error(err);
   }
 });
+
 
